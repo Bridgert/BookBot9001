@@ -1,21 +1,9 @@
-import os
-import psycopg2
 import discord
-
-from discord.utils import get
-from datetime import date
 import calendar
 
-from .database.database import Connect
-from .database.database import TripleNominate
-from .database.database import EmptyNomination
-from .database.database import NoNomination
-from .database.database import WrongUser
-from .database.database import DoubleVote
-from .database.database import SelfVote
-from .database.database import GenError
-from .database.database import NominationExists
-from .database.database import DoubleBook
+from discord.utils import get
+
+from .database.database import *
 from dotenv import load_dotenv
 
 load_dotenv()  # loads environmental values stored in .env
@@ -72,8 +60,8 @@ async def on_connect():  # sends connect message
 @client.event
 async def on_message(message):  # handles user messages/commands
 
-    # if message.channel.id != 692331084565839904:
-    #     return
+    if message.channel.id != 692331084565839904:
+        return
 
     content_flag = True
 
@@ -99,6 +87,24 @@ async def on_message(message):  # handles user messages/commands
         content_flag = False
 
     print("Entered command is '{}'".format(message_cmd))
+
+    if message_cmd == 'commands' or message_cmd == 'help':  # shows non-admin bot commands
+        command_list = '%nominate (book name) - Pick a nomination (up to 2 per user)\n' \
+                       '%get - Gets your nominations for the month\n' \
+                       '%get (user) - Gets user\'s nominations for the month ' \
+                       '(user is username/discriminator/displayname/userid\n' \
+                       '%delete (nomination) - Deletes your nomination\n' \
+                       '%vote (nomination) - Votes for nomination (cannot be yours)\n' \
+                       '%unvote - Removes your vote for the month\n' \
+                       '%count (nomination) - Counts how many votes a nomination has\n' \
+                       '%allvotes - Shows this month\'s votes\n' \
+                       '%getall - Shows overview of this month\'s nominations\n' \
+                       '%book - Shows this month\'s book\n' \
+                       '%oldbooks - Shows all previous months\' books (overview)\n'
+
+        await message.channel.send(command_list)
+
+        return
 
     if message_cmd == 'nominate':  # nominate command
         if not content_flag:
@@ -137,7 +143,7 @@ async def on_message(message):  # handles user messages/commands
     #
     #     return
 
-    if message_cmd == 'clear':
+    if message_cmd == 'clear':  # clears entire database
         if message.author.id == 110050968401358848:
             connect.clear_all()
             await message.channel.send("Cleared everything")
@@ -152,10 +158,10 @@ async def on_message(message):  # handles user messages/commands
             if my_nominations:
                 if len(my_nominations) == 1:
                     await message.channel.send(
-                        "You have nominated '{}' this month".format(message.author.name, my_nominations[0][0]))
+                        "You have nominated '{}' this month".format(my_nominations[0][0]))
                 else:
                     await message.channel.send(
-                        "You have nominated '{}' and '{}' this month".format(message.author.name, my_nominations[0][0],
+                        "You have nominated '{}' and '{}' this month".format(my_nominations[0][0],
                                                                              my_nominations[1][0]))
             else:
                 await message.channel.send("They haven't nominated this month yet")
@@ -169,7 +175,7 @@ async def on_message(message):  # handles user messages/commands
 
         my_nominations = connect.get_nominations(user.id)
 
-        if my_nominations:
+        if my_nominations:  # gets other user's nominations
             if len(my_nominations) == 1:
                 await message.channel.send(
                     "{} has nominated '{}' this month".format(user.name, my_nominations[0][0]))
@@ -225,10 +231,13 @@ async def on_message(message):  # handles user messages/commands
             connect.user_vote(message_content, message.author.id)
         except DoubleVote as error:
             await message.channel.send(error.message)
-            return
         except SelfVote as error:
             await message.channel.send(error.message)
-            return
+        except NoNomination as error:
+            await message.channel.send(error.message)
+        except Exception as error:
+            print("Unknown error: ", error)
+            await message.channel.send("Something went wrong")
         else:
             await message.channel.send("{} has voted for {}".format(message.author.name, message_content))
 
@@ -244,7 +253,7 @@ async def on_message(message):  # handles user messages/commands
         await message.channel.send("Removed {}\'s vote".format(message.author.name))
         return
 
-    if message_cmd == 'count':
+    if message_cmd == 'count':  # handles count command
         if not content_flag:
             await message.channel.send("Enter nomination")
             return
@@ -262,7 +271,7 @@ async def on_message(message):  # handles user messages/commands
 
         return
 
-    if message_cmd == 'masternom':
+    if message_cmd == 'masternom':  # admin master nomination - nominates under id = 1
         if not message.author.id == 110050968401358848:
             await message.channel.send("Invalid user")
             return
@@ -278,7 +287,7 @@ async def on_message(message):  # handles user messages/commands
 
         return
 
-    if message_cmd == 'allvotes':
+    if message_cmd == 'allvotes':  # prints all votes
         try:
             table = connect.get_table('votes')
         except:
@@ -314,17 +323,17 @@ async def on_message(message):  # handles user messages/commands
     #
     #     return
 
-    if message_cmd == 'getall' or message_cmd == 'overview':
+    if message_cmd == 'getall' or message_cmd == 'overview':  # gets all of this month's nominations
         try:
             nominations_table = connect.get_table('nominations')
         except:
-            await message.channel.send("Unable to load table")
+            await message.channel.send("Unable to load nominations")
             return
 
         try:
             votes_table = connect.get_table('votes')
         except:
-            await message.channel.send("Unable to load table")
+            await message.channel.send("Unable to load votes")
             return
 
         table_dict = {}
@@ -355,7 +364,7 @@ async def on_message(message):  # handles user messages/commands
 
         return
 
-    if message_cmd == 'resolve':
+    if message_cmd == 'resolve':  # automatically chooses this month's nominations
         if not message.author.id == 110050968401358848:
             await message.channel.send("Invalid user")
             return
@@ -409,7 +418,7 @@ async def on_message(message):  # handles user messages/commands
 
         return
 
-    if message_cmd == 'choose':
+    if message_cmd == 'choose':  # chooses manually this month's nominations
         if not message.author.id == 110050968401358848:
             await message.channel.send("Invalid user")
             return
@@ -431,7 +440,7 @@ async def on_message(message):  # handles user messages/commands
 
         return
 
-    if message_cmd == 'book':
+    if message_cmd == 'book':  # gets this month's book
         try:
             book = connect.get_current_book()
         except EmptyNomination:
@@ -441,7 +450,27 @@ async def on_message(message):  # handles user messages/commands
         await message.channel.send("This month's book is: {}".format(book))
         return
 
-    if message_cmd == 'clearbook':
+    if message_cmd == 'clearnomination':  # clear a nomination
+        if not message.author.id == 110050968401358848:
+            await message.channel.send("Invalid user")
+            return
+
+        if not content_flag:
+            await message.channel.send("Enter nomination")
+            return
+
+        try:
+            connect.clear_nomination(message_content)
+        except EmptyNomination as error:
+            await message.channel.send(error.message)
+        except:
+            await message.channel.send("Failed to delete {}".format(message_content))
+        else:
+            await message.channel.send("Successfully deleted {}".format(message_content))
+
+        return
+
+    if message_cmd == 'clearbook':  # clears this month's book
         if not message.author.id == 110050968401358848:
             await message.channel.send("Invalid user")
             return
@@ -457,15 +486,33 @@ async def on_message(message):  # handles user messages/commands
 
         return
 
-    if message_cmd == 'clearallbooks':
-        if message.author.id == 110050968401358848:
+    if message_cmd == 'clearallbooks':  # clears all book table
+        if not message.author.id == 110050968401358848:
+            await message.channel.send("Invalid user")
+            return
+
+        try:
             connect.clear_all_books()
-            await message.channel.send("Cleared all book history")
+        except:
+            await message.channel.send("Failed to clear all previous books")
         else:
-            await message.channel.send("You do not have the required privileges for that command")
+            await message.channel.send("Cleared all book history")
         return
 
-    if message_cmd == 'getbooks':
+    if message_cmd == 'clearallnominations':  # clears all of this month's nominations
+        if not message.author.id == 110050968401358848:
+            await message.channel.send("Invalid user")
+            return
+
+        try:
+            connect.clear_all_nominations()
+        except:
+            await message.channel.send("Failed to clear all nominations")
+        else:
+            await message.channel.send("Cleared all nominations")
+        return
+
+    if message_cmd == 'oldbooks' or message_cmd == 'prevbooks' or message_cmd == 'getbooks':  # gets all previous books
         try:
             nominations_table = connect.get_table('books')
         except:
@@ -478,9 +525,11 @@ async def on_message(message):  # handles user messages/commands
 
         for tup in nominations_table:
             if tup[1].year != today.year or tup[1].month != today.month:
-                to_print += "{}, {}'s nomination was '{}'\n".format(tup[1].year, calendar.month_name[tup[1].month], tup[0])
+                to_print += "{}, {}'s nomination was '{}'\n".format(tup[1].year, calendar.month_name[tup[1].month],
+                                                                    tup[0])
             else:
-                to_print += "{}, {}'s nomination is '{}'\n".format(tup[1].year, calendar.month_name[tup[1].month], tup[0])
+                to_print += "{}, {}'s nomination is '{}'\n".format(tup[1].year, calendar.month_name[tup[1].month],
+                                                                   tup[0])
 
         if to_print:
             await message.channel.send(to_print)
@@ -489,12 +538,12 @@ async def on_message(message):  # handles user messages/commands
 
         return
 
-    if message_cmd == 'exit':
+    if message_cmd == 'exit' or message_cmd == 'close':  # closes connection to server
         if message.author.id == 110050968401358848:
             connect.close_connection()
         return
 
-    if message_cmd == 'start':
+    if message_cmd == 'open' or message_cmd == 'start':  # starts connection to server
         if message.author.id == 110050968401358848:
             connect.__init__()
         return
