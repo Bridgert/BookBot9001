@@ -65,7 +65,7 @@ class Connect:
 
     def __init__(self):
 
-        database_url = os.environ['database_url']
+        database_url = os.environ['DATABASE_URL']
 
         try:
             self.conn = psycopg2.connect(database_url, sslmode='require')
