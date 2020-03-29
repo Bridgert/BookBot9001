@@ -83,7 +83,8 @@ class Connect:
         create_nomination_table = '''CREATE TABLE IF NOT EXISTS nominations (
             "ID"	serial PRIMARY KEY,
             "BookName"	text,
-            "UserID"	bigint
+            "UserID"	bigint,
+            "EmojiID" bigint
         )'''
 
         create_votes_table = '''CREATE TABLE IF NOT EXISTS votes (
@@ -207,6 +208,21 @@ class Connect:
         except:
             raise EmptyNomination
 
+    def get_nomination_id_by_user_vote(self, user_id):
+
+        get = '''SELECT "NominationID" FROM votes WHERE "UserID" = %s'''
+
+        self.cur.execute(sql.SQL(get), (user_id, ))
+
+        try:
+            return self.cur.fetchone()[0]
+        except TypeError:
+            raise EmptyNomination
+        except IndexError:
+            raise EmptyNomination
+        except:
+            raise GenError
+
     def get_book_name_by_nomination_id(self, nomination_id):
 
         get = '''SELECT "BookName" FROM nominations WHERE "ID" = %s'''
@@ -226,6 +242,17 @@ class Connect:
 
         self.cur.execute(sql.SQL(select), (user_id, ))
         return self.cur.fetchall()
+
+    def get_nomination_by_emoji_id(self, emoji_id):
+
+        get = '''SELECT "BookName" FROM nominations WHERE "EmojiID" = %s'''
+
+        self.cur.execute(sql.SQL(get), (emoji_id, ))
+
+        try:
+            return self.cur.fetchone()[0]
+        except:
+            raise EmptyNomination
 
     def has_voted(self, user_id):  # returns if user has voted already
         check = '''SELECT "NominationID" FROM votes WHERE "UserID" = %s'''
@@ -262,10 +289,30 @@ class Connect:
                 raise SelfVote
             else:
                 self.cur.execute(sql.SQL(insert), (nomination_id, user_id))
+        except DoubleVote:
+            raise DoubleVote
+        except SelfVote:
+            raise SelfVote
         except:
             raise GenError
 
         self.conn.commit()
+
+    def user_vote_by_emoji_id(self, user_id, emoji_id):
+
+        try:
+            nomination = self.get_nomination_by_emoji_id(emoji_id)
+        except:
+            raise EmptyNomination
+
+        try:
+            self.user_vote(nomination, user_id)
+        except DoubleVote:
+            raise DoubleVote
+        except SelfVote:
+            raise SelfVote
+        except:
+            raise GenError
 
     def delete_vote(self, user_id):
 
@@ -350,6 +397,20 @@ class Connect:
             return self.cur.fetchone()[0]
         except:
             raise EmptyNomination
+
+    def get_emoji_ids(self):
+
+        nominations_table = self.get_table('nominations')
+
+        if not nominations_table:
+            return []
+
+        emoji_arr = []
+
+        for tup in nominations_table:
+            emoji_arr.append(tup[3])
+
+        return emoji_arr
 
     def check_if_book_chosen(self):
 

@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 load_dotenv()  # loads environmental values stored in .env
 TOKEN = os.getenv("DISCORD_TOKEN")  # bot's token
 
+monthly_message = 1
+
 connect = Connect()
 
 client = discord.Client()
@@ -60,7 +62,7 @@ async def on_connect():  # sends connect message
 @client.event
 async def on_message(message):  # handles user messages/commands
 
-    if message.channel.id != 692331084565839904:
+    if message.channel.id != 692331084565839904 and message.channel.id != 692348060013166635:
         return
 
     content_flag = True
@@ -550,5 +552,98 @@ async def on_message(message):  # handles user messages/commands
 
     await message.channel.send("Unknown command")
 
+
+@client.event
+async def on_reaction_add(reaction, user):
+
+    if reaction.message.channel.id != 692331084565839904 and reaction.message.channel.id != 692348060013166635:
+        return
+
+    # if reaction.message.id != monthly_message:
+    #     return
+
+    if user.id != 110050968401358848:
+        return
+
+    print("User {} has added emoji with id: {}".format(user.name, reaction.emoji.id))
+
+    if reaction.emoji.id not in connect.get_emoji_ids():
+        await reaction.remove(user)
+        return
+
+    if connect.has_voted(user.id):
+        try:
+            to_nominate = connect.get_nomination_by_emoji_id(reaction.emoji.id)
+        except EmptyNomination as error:
+            print(error.message)
+            await reaction.remove(user)
+            return
+        except:
+            print("Unknown error in getting nomination")
+            await reaction.remove(user)
+            return
+        else:
+            try:
+                user_vote = connect.get_nomination_id_by_user_vote(user.id)
+            except EmptyNomination:
+                try:
+                    connect.user_vote_by_emoji_id(user.id, reaction.emoji.id)
+                except DoubleVote:
+                    print("User {} has tried to doublevote".format(user.name))
+                    await reaction.remove(user)
+                    return
+                except SelfVote:
+                    print("User {} has tried to selfvote".format(user.name))
+                    await reaction.remove(user)
+                    return
+                except:
+                    print("Unknown error in voting")
+                    await reaction.remove(user)
+                    return
+            except:
+                print("Unknown error in trying to get user's vote")
+                await reaction.remove(user)
+                return
+            else:
+                try:
+                    connect.delete_vote(user.id)
+                    connect.user_vote_by_emoji_id(user.id, reaction.emoji.id)
+                except EmptyNomination:
+                    print("Couldn't find the nomination")
+                    await reaction.remove(user)
+                    return
+                except DoubleVote:
+                    print("User {} has tried to doublevote".format(user.name))
+                    await reaction.remove(user)
+                    return
+                except SelfVote:
+                    print("User {} has tried to selfvote".format(user.name))
+                    await reaction.remove(user)
+                    return
+                except:
+                    print("Unknown error in voting")
+                    await reaction.remove(user)
+                    return
+    else:
+        try:
+            connect.user_vote_by_emoji_id(user.id, reaction.emoji.id)
+        except EmptyNomination:
+            print("Couldn't find the nomination")
+            await reaction.remove(user)
+            return
+        except DoubleVote:
+            print("User {} has tried to doublevote".format(user.name))
+            await reaction.remove(user)
+            return
+        except SelfVote:
+            print("User {} has tried to selfvote".format(user.name))
+            await reaction.remove(user)
+            return
+        except:
+            print("Unknown error in voting")
+            await reaction.remove(user)
+            return
+
+    await reaction.remove(user)
 
 client.run(TOKEN)
