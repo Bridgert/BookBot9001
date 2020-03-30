@@ -247,9 +247,9 @@ async def on_message(message):  # handles user messages/commands
             monthly_message = False
 
         try:
-            channel = await client.fetch_channel(test_channel)
+            channel = await client.fetch_channel(book_channel)
             message = await channel.fetch_message(monthly_message)
-            await message.unpin()
+            await message.delete()
         except:
             print("Message not found")
 
@@ -749,7 +749,7 @@ async def on_raw_reaction_add(reaction_event):
     if reaction_event.user_id != int(admin_id):
         return
 
-    channel = await client.fetch_channel(test_channel)
+    channel = await client.fetch_channel(book_channel)
     message = await channel.fetch_message(reaction_event.message_id)
     user = await client.fetch_user(reaction_event.user_id)
 
@@ -804,7 +804,7 @@ async def on_raw_reaction_remove(reaction_event):
     if reaction_event.user_id != int(admin_id):
         return
 
-    channel = await client.fetch_channel(test_channel)
+    channel = await client.fetch_channel(book_channel)
     message = await channel.fetch_message(reaction_event.message_id)
 
     print("User {} has removed emoji: {}".format(reaction_event.user_id, reaction_event.emoji.name))
