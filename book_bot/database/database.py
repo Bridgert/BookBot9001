@@ -189,14 +189,18 @@ class Connect:
 
         nomination_emojis = self.get_emojis()
 
+        print(nomination_emojis)
+
         if not nomination_emojis:
             raise EmptyNomination
 
-        input_emoji = False
+        input_emoji = None
 
-        for emote in emoji_list:
-            if emote not in nomination_emojis:
-                input_emoji = emote
+        global emoji_list
+
+        for key, value in emoji_list.items():
+            if value not in nomination_emojis:
+                input_emoji = value
                 break
 
         insert = '''INSERT INTO nominations ("BookName", "UserID", "Emoji") VALUES (%s, %s, %s)'''
@@ -372,6 +376,17 @@ class Connect:
 
         self.cur.execute(sql.SQL(select), (user_id,))
         return self.cur.fetchall()
+
+    def get_emoji_by_nomination(self, nomination):
+
+        get = '''SELECT "Emoji" FROM nominations WHERE "BookName" = %s'''
+
+        self.cur.execute(sql.SQL(get), (nomination, ))
+
+        try:
+            return self.cur.fetchone()[0]
+        except:
+            raise EmptyNomination
 
     def get_nomination_by_emoji(self, disc_emoji):
 

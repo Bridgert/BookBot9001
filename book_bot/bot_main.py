@@ -1,12 +1,12 @@
 import discord
 import os
 import calendar
+import emoji
 
 from discord.utils import get
 
 from .database.database import *
 from dotenv import load_dotenv
-from dotenv import set_key
 
 load_dotenv()  # loads environmental values stored in .env
 TOKEN = os.getenv("DISCORD_TOKEN")  # bot's token
@@ -93,7 +93,6 @@ def find_max(table_dict):
 
 
 def make_print_string(nominations_table, votes_table):
-
     table_dict = {}
 
     for att in nominations_table:
@@ -213,7 +212,17 @@ async def on_message(message):  # handles user messages/commands
         except:
             monthly_message = False
 
-        await message.edit(monthly_message)
+        edit_message = False
+
+        try:
+            channel = await client.fetch_channel(book_channel)
+            edit_message = await channel.fetch_message(monthly_message)
+            await message.delete()
+        except:
+            print("Message not found, thus not edited")
+
+        await edit_message.edit(content=to_print)
+        await edit_message.add_reaction(emoji.emojize(connect.get_emoji_by_nomination(message_content)))
 
         return
 
@@ -264,15 +273,17 @@ async def on_message(message):  # handles user messages/commands
 
         try:
             monthly_message = connect.get_message()
+            print(monthly_message)
         except:
             monthly_message = False
+            print("Failed to retrieve message")
 
         try:
             channel = await client.fetch_channel(book_channel)
             message = await channel.fetch_message(monthly_message)
             await message.delete()
         except:
-            print("Message not found")
+            print("Message not found, thus not deleted")
 
         if sent_message:
             monthly_message = sent_message.id
@@ -280,7 +291,7 @@ async def on_message(message):  # handles user messages/commands
             await sent_message.pin()
 
         for att in nominations_table:
-            await sent_message.add_reaction(get_emoji_discord(att[3]))
+            await sent_message.add_reaction(emoji.emojize(att[3]))
 
         return
 
@@ -337,8 +348,6 @@ async def on_message(message):  # handles user messages/commands
     #         await message.channel.send("They haven't nominated this month yet")
     #     return
 
-
-
     # if message_cmd == 'getid':  # get ID command
     #     try:
     #         message_content
@@ -360,6 +369,8 @@ async def on_message(message):  # handles user messages/commands
         if not content_flag:
             await message.channel.send("Enter a nomination")
             return
+
+        my_emoji = connect.get_emoji_by_nomination(message_content)
 
         try:
             connect.delete_nomination(message_content, message.author.id)
@@ -391,7 +402,22 @@ async def on_message(message):  # handles user messages/commands
         except:
             monthly_message = False
 
-        await message.edit(monthly_message)
+        edit_message = False
+
+        try:
+            monthly_message = connect.get_message()
+        except:
+            monthly_message = False
+
+        try:
+            channel = await client.fetch_channel(book_channel)
+            edit_message = await channel.fetch_message(monthly_message)
+            await message.delete()
+        except:
+            print("Message not found, thus not edited")
+
+        await edit_message.edit(content=to_print)
+        await edit_message.remove_reaction(emoji.emojize(my_emoji), client.user)
 
         return
 
@@ -781,6 +807,8 @@ async def on_message(message):  # handles user messages/commands
 
 @client.event
 async def on_raw_reaction_add(reaction_event):
+    if reaction_event.user_id == client.user.id:
+        return
 
     monthly_message = connect.get_message()
 
@@ -833,6 +861,8 @@ async def on_raw_reaction_add(reaction_event):
 
 @client.event
 async def on_raw_reaction_remove(reaction_event):
+    if reaction_event.user_id == client.user.id:
+        return
 
     monthly_message = connect.get_message()
 
@@ -874,5 +904,6 @@ async def on_raw_reaction_remove(reaction_event):
     print(to_print)
 
     await message.edit(content=to_print)
+
 
 client.run(TOKEN)
