@@ -280,7 +280,7 @@ async def on_message(message):  # handles user messages/commands
             await sent_message.pin()
 
         for att in nominations_table:
-            sent_message.add_reaction(get_emoji_discord(att[3]))
+            await sent_message.add_reaction(get_emoji_discord(att[3]))
 
         return
 
