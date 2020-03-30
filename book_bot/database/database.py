@@ -128,6 +128,10 @@ class Connect:
             "Date"	date
         )'''
 
+        create_message_table = '''CREATE TABLE IF NOT EXISTS message (
+            "MessageID" bigint
+        )'''
+
         try:
             self.cur.execute(create_nomination_table)
         except:
@@ -142,6 +146,11 @@ class Connect:
             self.cur.execute(create_books_table)
         except:
             print("Error in creating books table")
+
+        try:
+            self.cur.execute(create_message_table)
+        except:
+            print("Error in creating message table")
 
         self.conn.commit()
 
@@ -262,6 +271,35 @@ class Connect:
         self.cur.execute(sql.SQL(delete), (None,))
 
         self.conn.commit()
+
+    def get_message(self):
+
+        select = '''SELECT * FROM message'''
+
+        self.cur.execute(select)
+
+        try:
+            return self.cur.fetchone()[0]
+        except:
+            raise GenError
+
+    def change_message(self, message_id):
+
+        change = '''UPDATE message SET "MessageID" = %s'''
+
+        try:
+            self.cur.execute(sql.SQL(change), (message_id, ))
+        except:
+            raise GenError
+
+    def insert_message(self, message_id):
+
+        insert = '''INSERT INTO message ("MessageID") VALUES (%s)'''
+
+        try:
+            self.cur.execute(sql.SQL(insert), (message_id, ))
+        except:
+            raise GenError
 
     def does_nomination_have_emoji(self, nomination_id):
 

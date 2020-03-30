@@ -11,8 +11,6 @@ from dotenv import set_key
 load_dotenv()  # loads environmental values stored in .env
 TOKEN = os.getenv("DISCORD_TOKEN")  # bot's token
 
-monthly_message = 1
-
 connect = Connect()
 
 client = discord.Client()
@@ -22,8 +20,6 @@ book_channel = os.getenv("BOOK_CLUB_ID")
 test_channel = os.getenv("TEST_CHANNEL_ID")
 
 admin_id = os.getenv("ADMIN_ID")
-
-monthly_message = os.getenv("MESSAGE_ID")
 
 emoji_list = {':zero:': ':keycap_0:', ':one:': ':keycap_1:', ':two:': ':keycap_2:', ':three:': ':keycap_3:',
               ':four:': ':keycap_4:', ':five:': ':keycap_5:', ':six:': ':keycap_6:', ':seven:': ':keycap_7:',
@@ -243,17 +239,23 @@ async def on_message(message):  # handles user messages/commands
             sent_message = await message.channel.send(to_print)
         else:
             await message.channel.send("Unable to show overview")
+            return
 
-        global monthly_message
+        try:
+            monthly_message = connect.get_message()
+        except:
+            monthly_message = False
 
-        channel = await client.fetch_channel(test_channel)
-        message = await channel.fetch_message(int(monthly_message))
-        await message.unpin()
+        try:
+            channel = await client.fetch_channel(test_channel)
+            message = await channel.fetch_message(monthly_message)
+            await message.unpin()
+        except:
+            print("Message not found")
 
         if sent_message:
-            set_key(".env", "MESSAGE_ID", str(sent_message.id))
-            os.environ["MESSAGE_ID"] = str(sent_message.id)
-            monthly_message = os.environ["MESSAGE_ID"]
+            monthly_message = sent_message.id
+            connect.change_message(monthly_message)
             await sent_message.pin()
 
         return
@@ -266,41 +268,52 @@ async def on_message(message):  # handles user messages/commands
             await message.channel.send("You do not have the required privileges for that command")
         return
 
-    if message_cmd == 'get':  # gets users' nominations
-        if not content_flag:  # gets own user's nominations
-            my_nominations = connect.get_nominations(message.author.id)
-
-            if my_nominations:
-                if len(my_nominations) == 1:
-                    await message.channel.send(
-                        "You have nominated '{}' this month".format(my_nominations[0][0]))
-                else:
-                    await message.channel.send(
-                        "You have nominated '{}' and '{}' this month".format(my_nominations[0][0],
-                                                                             my_nominations[1][0]))
-            else:
-                await message.channel.send("They haven't nominated this month yet")
+    if message_cmd == 'insertmessage':
+        if not message.author.id == int(admin_id):
+            await message.channel.send("Invalid user")
             return
 
-        user = get_user(message_content)
+        connect.insert_message(1)
 
-        if not user:
-            await message.channel.send("No such user")
-            return
-
-        my_nominations = connect.get_nominations(user.id)
-
-        if my_nominations:  # gets other user's nominations
-            if len(my_nominations) == 1:
-                await message.channel.send(
-                    "{} has nominated '{}' this month".format(user.name, my_nominations[0][0]))
-            else:
-                await message.channel.send(
-                    "{} has nominated '{}' and '{}' this month".format(user.name, my_nominations[0][0],
-                                                                       my_nominations[1][0]))
-        else:
-            await message.channel.send("They haven't nominated this month yet")
         return
+
+    # if message_cmd == 'get':  # gets users' nominations
+    #     if not content_flag:  # gets own user's nominations
+    #         my_nominations = connect.get_nominations(message.author.id)
+    #
+    #         if my_nominations:
+    #             if len(my_nominations) == 1:
+    #                 await message.channel.send(
+    #                     "You have nominated '{}' this month".format(my_nominations[0][0]))
+    #             else:
+    #                 await message.channel.send(
+    #                     "You have nominated '{}' and '{}' this month".format(my_nominations[0][0],
+    #                                                                          my_nominations[1][0]))
+    #         else:
+    #             await message.channel.send("They haven't nominated this month yet")
+    #         return
+    #
+    #     user = get_user(message_content)
+    #
+    #     if not user:
+    #         await message.channel.send("No such user")
+    #         return
+    #
+    #     my_nominations = connect.get_nominations(user.id)
+    #
+    #     if my_nominations:  # gets other user's nominations
+    #         if len(my_nominations) == 1:
+    #             await message.channel.send(
+    #                 "{} has nominated '{}' this month".format(user.name, my_nominations[0][0]))
+    #         else:
+    #             await message.channel.send(
+    #                 "{} has nominated '{}' and '{}' this month".format(user.name, my_nominations[0][0],
+    #                                                                    my_nominations[1][0]))
+    #     else:
+    #         await message.channel.send("They haven't nominated this month yet")
+    #     return
+
+
 
     # if message_cmd == 'getid':  # get ID command
     #     try:
@@ -724,6 +737,8 @@ async def on_message(message):  # handles user messages/commands
 @client.event
 async def on_raw_reaction_add(reaction_event):
 
+    monthly_message = connect.get_message()
+
     if reaction_event.channel_id != int(book_channel) and reaction_event.channel_id != int(test_channel):
         return
 
@@ -776,7 +791,8 @@ async def on_raw_reaction_add(reaction_event):
 
 @client.event
 async def on_raw_reaction_remove(reaction_event):
-    print("Dude")
+
+    monthly_message = connect.get_message()
 
     if reaction_event.channel_id != int(book_channel) and reaction_event.channel_id != int(test_channel):
         return
