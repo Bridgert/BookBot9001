@@ -746,9 +746,6 @@ async def on_raw_reaction_add(reaction_event):
         print("Wrong message")
         return
 
-    if reaction_event.user_id != int(admin_id):
-        return
-
     channel = await client.fetch_channel(book_channel)
     message = await channel.fetch_message(reaction_event.message_id)
     user = await client.fetch_user(reaction_event.user_id)
@@ -799,9 +796,6 @@ async def on_raw_reaction_remove(reaction_event):
 
     if reaction_event.message_id != int(monthly_message):
         print("Wrong message")
-        return
-
-    if reaction_event.user_id != int(admin_id):
         return
 
     channel = await client.fetch_channel(book_channel)
