@@ -283,14 +283,14 @@ class Connect:
         # insert_vote = insert.format(nomination_id, user_id)
 
         try:
-            if self.has_voted(user_id):
-                raise DoubleVote
-            elif self.get_nominator_id(nomination_id) == user_id:
+            # if self.has_voted(user_id):
+            #     raise DoubleVote
+            if self.get_nominator_id(nomination_id) == user_id:
                 raise SelfVote
             else:
                 self.cur.execute(sql.SQL(insert), (nomination_id, user_id))
-        except DoubleVote:
-            raise DoubleVote
+        # except DoubleVote:
+        #     raise DoubleVote
         except SelfVote:
             raise SelfVote
         except:

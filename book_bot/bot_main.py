@@ -565,7 +565,7 @@ async def on_reaction_add(reaction, user):
     if user.id != 110050968401358848:
         return
 
-    print("User {} has added emoji with id: {}".format(user.name, reaction.emoji.id))
+    print("User {} has added emoji with id: {}".format(user.name, reaction.emoji))
 
     if reaction.emoji.id not in connect.get_emoji_ids():
         await reaction.remove(user)
