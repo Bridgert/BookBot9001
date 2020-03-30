@@ -194,6 +194,27 @@ async def on_message(message):  # handles user messages/commands
             await message.channel.send(
                 "Added '{0}' to {1}'s nominations".format(message_content.lower(), message.author.name))
 
+        try:
+            nominations_table = connect.get_table('nominations')
+        except:
+            await message.channel.send("Unable to load nominations")
+            return
+
+        try:
+            votes_table = connect.get_table('votes')
+        except:
+            await message.channel.send("Unable to load votes")
+            return
+
+        to_print = make_print_string(nominations_table, votes_table)
+
+        try:
+            monthly_message = connect.get_message()
+        except:
+            monthly_message = False
+
+        await message.edit(monthly_message)
+
         return
 
     # if message_cmd == 'modify':  # modify command
@@ -257,6 +278,9 @@ async def on_message(message):  # handles user messages/commands
             monthly_message = sent_message.id
             connect.change_message(monthly_message)
             await sent_message.pin()
+
+        for att in nominations_table:
+            sent_message.add_reaction(get_emoji_discord(att[3]))
 
         return
 
@@ -347,6 +371,27 @@ async def on_message(message):  # handles user messages/commands
             return
         else:
             await message.channel.send("Nomination '{}' has been deleted".format(message_content))
+
+        try:
+            nominations_table = connect.get_table('nominations')
+        except:
+            await message.channel.send("Unable to load nominations")
+            return
+
+        try:
+            votes_table = connect.get_table('votes')
+        except:
+            await message.channel.send("Unable to load votes")
+            return
+
+        to_print = make_print_string(nominations_table, votes_table)
+
+        try:
+            monthly_message = connect.get_message()
+        except:
+            monthly_message = False
+
+        await message.edit(monthly_message)
 
         return
 
