@@ -1,7 +1,38 @@
 import psycopg2
 import os
+import emoji
 from datetime import date
 from psycopg2 import sql
+
+emoji_list = {':zero:': ':keycap_0:', ':one:': ':keycap_1:', ':two:': ':keycap_2:', ':three:': ':keycap_3:',
+              ':four:': ':keycap_4:', ':five:': ':keycap_5:', ':six:': ':keycap_6:', ':seven:': ':keycap_7:',
+              ':eight:': ':keycap_8:', ':nine:': ':keycap_9:',
+              ':regional_indicator_a:': ':regional_indicator_symbol_letter_a:',
+              ':regional_indicator_b:': ':regional_indicator_symbol_letter_b:',
+              ':regional_indicator_c:': ':regional_indicator_symbol_letter_c:',
+              ':regional_indicator_d:': ':regional_indicator_symbol_letter_d:',
+              ':regional_indicator_e:': ':regional_indicator_symbol_letter_e:',
+              ':regional_indicator_f:': ':regional_indicator_symbol_letter_f:',
+              ':regional_indicator_g:': ':regional_indicator_symbol_letter_g:',
+              ':regional_indicator_h:': ':regional_indicator_symbol_letter_h:',
+              ':regional_indicator_i:': ':regional_indicator_symbol_letter_i:',
+              ':regional_indicator_j:': ':regional_indicator_symbol_letter_j:',
+              ':regional_indicator_k:': ':regional_indicator_symbol_letter_k:',
+              ':regional_indicator_l:': ':regional_indicator_symbol_letter_l:',
+              ':regional_indicator_m:': ':regional_indicator_symbol_letter_m:',
+              ':regional_indicator_n:': ':regional_indicator_symbol_letter_n:',
+              ':regional_indicator_o:': ':regional_indicator_symbol_letter_o:',
+              ':regional_indicator_p:': ':regional_indicator_symbol_letter_p:',
+              ':regional_indicator_q:': ':regional_indicator_symbol_letter_q:',
+              ':regional_indicator_r:': ':regional_indicator_symbol_letter_r:',
+              ':regional_indicator_s:': ':regional_indicator_symbol_letter_s:',
+              ':regional_indicator_t:': ':regional_indicator_symbol_letter_t:',
+              ':regional_indicator_u:': ':regional_indicator_symbol_letter_u:',
+              ':regional_indicator_v:': ':regional_indicator_symbol_letter_v:',
+              ':regional_indicator_w:': ':regional_indicator_symbol_letter_w:',
+              ':regional_indicator_x:': ':regional_indicator_symbol_letter_x:',
+              ':regional_indicator_y:': ':regional_indicator_symbol_letter_y:',
+              ':regional_indicator_z:': ':regional_indicator_symbol_letter_z:'}
 
 
 class Error(Exception):
@@ -84,7 +115,7 @@ class Connect:
             "ID"	serial PRIMARY KEY,
             "BookName"	text,
             "UserID"	bigint,
-            "EmojiID" bigint
+            "Emoji" TEXT
         )'''
 
         create_votes_table = '''CREATE TABLE IF NOT EXISTS votes (
@@ -147,13 +178,25 @@ class Connect:
         if self.cur.fetchone():
             raise NominationExists
 
-        insert = '''INSERT INTO nominations ("BookName", "UserID") VALUES (%s, %s)'''
+        nomination_emojis = self.get_emojis()
+
+        if not nomination_emojis:
+            raise EmptyNomination
+
+        input_emoji = False
+
+        for emote in emoji_list:
+            if emote not in nomination_emojis:
+                input_emoji = emote
+                break
+
+        insert = '''INSERT INTO nominations ("BookName", "UserID", "Emoji") VALUES (%s, %s, %s)'''
         # insert_nomination = insert.format(book_name.lower(), user_id)
 
         print(insert)
 
         try:
-            self.cur.execute(sql.SQL(insert), (book_name.lower(), user_id))
+            self.cur.execute(sql.SQL(insert), (book_name.lower(), user_id, input_emoji))
         except:
             raise GenError
 
@@ -167,7 +210,7 @@ class Connect:
         print(insert)
 
         try:
-            self.cur.execute(sql.SQL(insert), (book_name.lower(), ))
+            self.cur.execute(sql.SQL(insert), (book_name.lower(),))
         except:
             raise GenError
 
@@ -178,18 +221,67 @@ class Connect:
         get = '''SELECT "ID" FROM nominations WHERE "BookName" = %s;'''
         # get_id = get.format(nomination.lower())
 
-        self.cur.execute(sql.SQL(get), (nomination, ))
+        self.cur.execute(sql.SQL(get), (nomination,))
         try:
             return self.cur.fetchone()[0]
         except:
             raise NoNomination
+
+    def settle_emojis(self):
+
+        my_emojis = self.get_emojis()
+
+        print(my_emojis)
+
+        try:
+            for nom in self.get_table('nominations'):
+                print(nom)
+                if not self.does_nomination_have_emoji(nom[0]):
+                    for emote in emoji_list.items():
+                        if emote[1] not in my_emojis:
+                            print(emote)
+                            insert = '''UPDATE nominations SET "Emoji" = %s WHERE "ID" = %s'''
+
+                            try:
+                                self.cur.execute(sql.SQL(insert), (emote[1], nom[0]))
+                            except:
+                                raise GenError
+                            else:
+                                self.conn.commit()
+                                emoji_list.pop(emoji[0])
+                                break
+        except EmptyNomination:
+            raise EmptyNomination
+        except:
+            raise GenError
+
+    def remove_all_emojis(self):
+
+        delete = '''UPDATE nominations SET "Emoji" = %s'''
+
+        self.cur.execute(sql.SQL(delete), (None,))
+
+        self.conn.commit()
+
+    def does_nomination_have_emoji(self, nomination_id):
+
+        select = '''SELECT "Emoji" FROM nominations WHERE "ID" = %s'''
+
+        self.cur.execute(sql.SQL(select), (nomination_id,))
+
+        try:
+            if self.cur.fetchone()[0]:
+                return True
+            return False
+        except:
+            raise EmptyNomination
 
     def get_user_id_by_nomination_id_votes(self, nomination_id):
 
         get = '''SELECT "UserID" FROM votes WHERE "NominationID" = %s;'''
         # get_user_id = get.format(nomination_id)
 
-        self.cur.execute(sql.SQL(get), (nomination_id, ))
+        self.cur.execute(sql.SQL(get), (nomination_id,))
 
         try:
             return self.cur.fetchone()[0]
@@ -201,7 +293,7 @@ class Connect:
         get = '''SELECT "UserID" FROM nominations WHERE "ID" = %s;'''
         # get_user_id = get.format(nomination_id)
 
-        self.cur.execute(sql.SQL(get), (nomination_id, ))
+        self.cur.execute(sql.SQL(get), (nomination_id,))
 
         try:
             return self.cur.fetchone()[0]
@@ -212,7 +304,7 @@ class Connect:
 
         get = '''SELECT "NominationID" FROM votes WHERE "UserID" = %s'''
 
-        self.cur.execute(sql.SQL(get), (user_id, ))
+        self.cur.execute(sql.SQL(get), (user_id,))
 
         try:
             return self.cur.fetchone()[0]
@@ -228,7 +320,7 @@ class Connect:
         get = '''SELECT "BookName" FROM nominations WHERE "ID" = %s'''
         # get_book = get.format(nomination_id)
 
-        self.cur.execute(sql.SQL(get), (nomination_id, ))
+        self.cur.execute(sql.SQL(get), (nomination_id,))
 
         try:
             return self.cur.fetchone()[0]
@@ -240,14 +332,14 @@ class Connect:
         select = '''SELECT "BookName" FROM nominations WHERE "UserID" = %s'''
         # select_nomination = select.format(user_id)
 
-        self.cur.execute(sql.SQL(select), (user_id, ))
+        self.cur.execute(sql.SQL(select), (user_id,))
         return self.cur.fetchall()
 
-    def get_nomination_by_emoji_id(self, emoji_id):
+    def get_nomination_by_emoji(self, disc_emoji):
 
-        get = '''SELECT "BookName" FROM nominations WHERE "EmojiID" = %s'''
+        get = '''SELECT "BookName" FROM nominations WHERE "Emoji" = %s'''
 
-        self.cur.execute(sql.SQL(get), (emoji_id, ))
+        self.cur.execute(sql.SQL(get), (disc_emoji,))
 
         try:
             return self.cur.fetchone()[0]
@@ -258,7 +350,7 @@ class Connect:
         check = '''SELECT "NominationID" FROM votes WHERE "UserID" = %s'''
         # check_voted = check.format(user_id)
 
-        self.cur.execute(sql.SQL(check), (user_id, ))
+        self.cur.execute(sql.SQL(check), (user_id,))
 
         if self.cur.fetchone():
             return True
@@ -270,7 +362,7 @@ class Connect:
         get = '''SELECT "UserID" FROM nominations WHERE "ID" = %s'''
         # get_id = get.format(nomination_id)
 
-        self.cur.execute(sql.SQL(get), (nomination_id, ))
+        self.cur.execute(sql.SQL(get), (nomination_id,))
         return self.cur.fetchone()[0]
 
     def user_vote(self, nomination, user_id):
@@ -298,33 +390,54 @@ class Connect:
 
         self.conn.commit()
 
-    def user_vote_by_emoji_id(self, user_id, emoji_id):
+    def user_vote_by_emoji(self, user_id, disc_emoji):
+
+        disc_emoji = emoji.demojize(str(disc_emoji))
 
         try:
-            nomination = self.get_nomination_by_emoji_id(emoji_id)
+            nomination = self.get_nomination_by_emoji(disc_emoji)
         except:
             raise EmptyNomination
 
         try:
             self.user_vote(nomination, user_id)
-        except DoubleVote:
-            raise DoubleVote
+        # except DoubleVote:
+        #     raise DoubleVote
         except SelfVote:
             raise SelfVote
         except:
             raise GenError
 
-    def delete_vote(self, user_id):
+    def delete_vote(self, nomination, user_id):
 
-        delete = '''DELETE FROM votes WHERE "UserID" = %s'''
+        try:
+            nomination_id = self.get_id(nomination)
+        except:
+            return EmptyNomination
+
+        delete = '''DELETE FROM votes WHERE "UserID" = %s AND "NominationID" = %s'''
         # delete_vote = delete.format(user_id)
 
         try:
-            self.cur.execute(sql.SQL(delete), (user_id, ))
+            self.cur.execute(sql.SQL(delete), (user_id, nomination_id))
         except:
             raise GenError
 
         self.conn.commit()
+
+    def delete_vote_by_emoji(self, user_id, disc_emoji):
+
+        disc_emoji = emoji.demojize(str(disc_emoji))
+
+        try:
+            nomination = self.get_nomination_by_emoji(disc_emoji)
+        except:
+            raise EmptyNomination
+
+        try:
+            self.delete_vote(nomination, user_id)
+        except:
+            raise GenError
 
     def delete_nomination(self, nomination, user_id):
         try:
@@ -347,8 +460,8 @@ class Connect:
         # delete_vote_sql = delete_vote.format(nomination_id)
 
         try:
-            self.cur.execute(sql.SQL(delete), (nomination_id, ))
-            self.cur.execute(sql.SQL(delete_vote), (nomination_id, ))
+            self.cur.execute(sql.SQL(delete), (nomination_id,))
+            self.cur.execute(sql.SQL(delete_vote), (nomination_id,))
         except:
             raise GenError
 
@@ -364,7 +477,7 @@ class Connect:
         count = '''SELECT COUNT (*) FROM votes WHERE "NominationID" = %s;'''
         # count_votes = count.format(nomination_id)
 
-        self.cur.execute(sql.SQL(count), (nomination_id, ))
+        self.cur.execute(sql.SQL(count), (nomination_id,))
         try:
             return self.cur.fetchone()[0]
         except:
@@ -391,14 +504,14 @@ class Connect:
         select = '''SELECT "BookName" FROM books WHERE "Date" = %s;'''
         # select_book = select.format(my_date)
 
-        self.cur.execute(sql.SQL(select), (my_date, ))
+        self.cur.execute(sql.SQL(select), (my_date,))
 
         try:
             return self.cur.fetchone()[0]
         except:
             raise EmptyNomination
 
-    def get_emoji_ids(self):
+    def get_emojis(self):
 
         nominations_table = self.get_table('nominations')
 
@@ -421,7 +534,7 @@ class Connect:
         select = '''SELECT * FROM books WHERE "Date" = %s;'''
         # select_book = select.format(my_date)
 
-        self.cur.execute(sql.SQL(select), (my_date, ))
+        self.cur.execute(sql.SQL(select), (my_date,))
 
         try:
             self.cur.fetchone()[0]
@@ -446,7 +559,7 @@ class Connect:
         select = '''SELECT * FROM nominations WHERE "ID" = %s'''
         # select_nomination = select.format(nomination_id)
 
-        self.cur.execute(sql.SQL(select), (nomination_id, ))
+        self.cur.execute(sql.SQL(select), (nomination_id,))
 
         try:
             book = self.cur.fetchone()
@@ -484,7 +597,7 @@ class Connect:
         delete = '''DELETE FROM nominations WHERE "ID" = %s;'''
         # delete_book = delete.format(my_date)
 
-        self.cur.execute(sql.SQL(delete), (nomination_id, ))
+        self.cur.execute(sql.SQL(delete), (nomination_id,))
 
         self.conn.commit()
 
@@ -500,7 +613,7 @@ class Connect:
         delete = '''DELETE FROM books WHERE "Date" = %s;'''
         # delete_book = delete.format(my_date)
 
-        self.cur.execute(sql.SQL(delete), (my_date, ))
+        self.cur.execute(sql.SQL(delete), (my_date,))
 
         self.conn.commit()
 
@@ -515,6 +628,14 @@ class Connect:
         delete_books = '''DELETE FROM books'''
 
         self.cur.execute(delete_books)
+
+        self.conn.commit()
+
+    def clear_all_votes(self):
+
+        delete_nominations = '''DELETE FROM votes'''
+
+        self.cur.execute(delete_nominations)
 
         self.conn.commit()
 

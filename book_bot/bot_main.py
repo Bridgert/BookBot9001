@@ -1,10 +1,12 @@
 import discord
+import os
 import calendar
 
 from discord.utils import get
 
 from .database.database import *
 from dotenv import load_dotenv
+from dotenv import set_key
 
 load_dotenv()  # loads environmental values stored in .env
 TOKEN = os.getenv("DISCORD_TOKEN")  # bot's token
@@ -14,6 +16,51 @@ monthly_message = 1
 connect = Connect()
 
 client = discord.Client()
+
+book_channel = os.getenv("BOOK_CLUB_ID")
+
+test_channel = os.getenv("TEST_CHANNEL_ID")
+
+admin_id = os.getenv("ADMIN_ID")
+
+monthly_message = os.getenv("MESSAGE_ID")
+
+emoji_list = {':zero:': ':keycap_0:', ':one:': ':keycap_1:', ':two:': ':keycap_2:', ':three:': ':keycap_3:',
+              ':four:': ':keycap_4:', ':five:': ':keycap_5:', ':six:': ':keycap_6:', ':seven:': ':keycap_7:',
+              ':eight:': ':keycap_8:', ':nine:': ':keycap_9:',
+              ':regional_indicator_a:': ':regional_indicator_symbol_letter_a:',
+              ':regional_indicator_b:': ':regional_indicator_symbol_letter_b:',
+              ':regional_indicator_c:': ':regional_indicator_symbol_letter_c:',
+              ':regional_indicator_d:': ':regional_indicator_symbol_letter_d:',
+              ':regional_indicator_e:': ':regional_indicator_symbol_letter_e:',
+              ':regional_indicator_f:': ':regional_indicator_symbol_letter_f:',
+              ':regional_indicator_g:': ':regional_indicator_symbol_letter_g:',
+              ':regional_indicator_h:': ':regional_indicator_symbol_letter_h:',
+              ':regional_indicator_i:': ':regional_indicator_symbol_letter_i:',
+              ':regional_indicator_j:': ':regional_indicator_symbol_letter_j:',
+              ':regional_indicator_k:': ':regional_indicator_symbol_letter_k:',
+              ':regional_indicator_l:': ':regional_indicator_symbol_letter_l:',
+              ':regional_indicator_m:': ':regional_indicator_symbol_letter_m:',
+              ':regional_indicator_n:': ':regional_indicator_symbol_letter_n:',
+              ':regional_indicator_o:': ':regional_indicator_symbol_letter_o:',
+              ':regional_indicator_p:': ':regional_indicator_symbol_letter_p:',
+              ':regional_indicator_q:': ':regional_indicator_symbol_letter_q:',
+              ':regional_indicator_r:': ':regional_indicator_symbol_letter_r:',
+              ':regional_indicator_s:': ':regional_indicator_symbol_letter_s:',
+              ':regional_indicator_t:': ':regional_indicator_symbol_letter_t:',
+              ':regional_indicator_u:': ':regional_indicator_symbol_letter_u:',
+              ':regional_indicator_v:': ':regional_indicator_symbol_letter_v:',
+              ':regional_indicator_w:': ':regional_indicator_symbol_letter_w:',
+              ':regional_indicator_x:': ':regional_indicator_symbol_letter_x:',
+              ':regional_indicator_y:': ':regional_indicator_symbol_letter_y:',
+              ':regional_indicator_z:': ':regional_indicator_symbol_letter_z:'}
+
+
+def get_emoji_discord(my_emoji):
+    for key, value in emoji_list.items():
+        if value == my_emoji:
+            return key
+    return False
 
 
 def get_user(message_content):
@@ -49,6 +96,39 @@ def find_max(table_dict):
     return max_votes
 
 
+def make_print_string(nominations_table, votes_table):
+
+    table_dict = {}
+
+    for att in nominations_table:
+        print(att)
+        current_book = att[1]
+        table_dict[current_book] = []
+        current_user_id = connect.get_user_id_by_id_nominations(att[0])
+        print(current_user_id)
+        user = get_user(current_user_id)
+        print(user)
+        if not user:
+            table_dict[current_book].append("Unknown User")
+        else:
+            table_dict[current_book].append(user.mention)
+        table_dict[current_book].append(count_votes(att[0], votes_table))
+        if att[3]:
+            table_dict[current_book].append(get_emoji_discord(att[3]))
+        else:
+            table_dict[current_book].append("No emoji")
+
+    to_print = ""
+
+    print(table_dict)
+
+    for book in list(table_dict.keys()):
+        to_print += "{} - '{}' ({}) has {} votes\n".format(table_dict[book][0], book,
+                                                           table_dict[book][2], table_dict[book][1])
+
+    return to_print
+
+
 @client.event
 async def on_ready():  # sends ready message
     print(f'{client.user} is ready to connect do Discord!')
@@ -62,7 +142,7 @@ async def on_connect():  # sends connect message
 @client.event
 async def on_message(message):  # handles user messages/commands
 
-    if message.channel.id != 692331084565839904 and message.channel.id != 692348060013166635:
+    if message.channel.id != int(book_channel) and message.channel.id != int(test_channel):
         return
 
     content_flag = True
@@ -92,15 +172,8 @@ async def on_message(message):  # handles user messages/commands
 
     if message_cmd == 'commands' or message_cmd == 'help':  # shows non-admin bot commands
         command_list = '%nominate (book name) - Pick a nomination (up to 2 per user)\n' \
-                       '%get - Gets your nominations for the month\n' \
-                       '%get (user) - Gets user\'s nominations for the month ' \
                        '(user is username/discriminator/displayname/userid\n' \
                        '%delete (nomination) - Deletes your nomination\n' \
-                       '%vote (nomination) - Votes for nomination (cannot be yours)\n' \
-                       '%unvote - Removes your vote for the month\n' \
-                       '%count (nomination) - Counts how many votes a nomination has\n' \
-                       '%allvotes - Shows this month\'s votes\n' \
-                       '%getall - Shows overview of this month\'s nominations\n' \
                        '%book - Shows this month\'s book\n' \
                        '%oldbooks - Shows all previous months\' books (overview)\n'
 
@@ -145,8 +218,48 @@ async def on_message(message):  # handles user messages/commands
     #
     #     return
 
+    if message_cmd == 'makenew':
+        if not message.author.id == int(admin_id):
+            await message.channel.send("Invalid user")
+            return
+
+        try:
+            nominations_table = connect.get_table('nominations')
+        except:
+            await message.channel.send("Unable to load nominations")
+            return
+
+        try:
+            votes_table = connect.get_table('votes')
+        except:
+            await message.channel.send("Unable to load votes")
+            return
+
+        to_print = make_print_string(nominations_table, votes_table)
+
+        sent_message = False
+
+        if to_print:
+            sent_message = await message.channel.send(to_print)
+        else:
+            await message.channel.send("Unable to show overview")
+
+        global monthly_message
+
+        channel = await client.fetch_channel(test_channel)
+        message = await channel.fetch_message(int(monthly_message))
+        await message.unpin()
+
+        if sent_message:
+            set_key(".env", "MESSAGE_ID", str(sent_message.id))
+            os.environ["MESSAGE_ID"] = str(sent_message.id)
+            monthly_message = os.environ["MESSAGE_ID"]
+            await sent_message.pin()
+
+        return
+
     if message_cmd == 'clear':  # clears entire database
-        if message.author.id == 110050968401358848:
+        if message.author.id == int(admin_id):
             connect.clear_all()
             await message.channel.send("Cleared everything")
         else:
@@ -224,57 +337,69 @@ async def on_message(message):  # handles user messages/commands
 
         return
 
-    if message_cmd == 'vote':  # vote command
-        if not content_flag:
-            await message.channel.send("Enter a nomination")
+    # if message_cmd == 'vote':  # vote command
+    #     if not content_flag:
+    #         await message.channel.send("Enter a nomination")
+    #         return
+    #
+    #     try:
+    #         connect.user_vote(message_content, message.author.id)
+    #     except DoubleVote as error:
+    #         await message.channel.send(error.message)
+    #     except SelfVote as error:
+    #         await message.channel.send(error.message)
+    #     except NoNomination as error:
+    #         await message.channel.send(error.message)
+    #     except Exception as error:
+    #         print("Unknown error: ", error)
+    #         await message.channel.send("Something went wrong")
+    #     else:
+    #         await message.channel.send("{} has voted for {}".format(message.author.name, message_content))
+    #
+    #     return
+
+    if message_cmd == 'unvoteall':  # remove all votes command
+        if not message.author.id == int(admin_id):
+            await message.channel.send("Invalid user")
             return
 
         try:
-            connect.user_vote(message_content, message.author.id)
-        except DoubleVote as error:
-            await message.channel.send(error.message)
-        except SelfVote as error:
-            await message.channel.send(error.message)
-        except NoNomination as error:
-            await message.channel.send(error.message)
-        except Exception as error:
-            print("Unknown error: ", error)
-            await message.channel.send("Something went wrong")
-        else:
-            await message.channel.send("{} has voted for {}".format(message.author.name, message_content))
-
-        return
-
-    if message_cmd == 'unvote':  # remove vote command
-        try:
-            connect.delete_vote(message.author.id)
+            connect.clear_all_votes()
         except:
-            await message.channel.send("Unable to delete vote")
-            return
-
-        await message.channel.send("Removed {}\'s vote".format(message.author.name))
-        return
-
-    if message_cmd == 'count':  # handles count command
-        if not content_flag:
-            await message.channel.send("Enter nomination")
-            return
-
-        try:
-            count = connect.count_votes(message_content)
-        except NoNomination as error:
-            await message.channel.send(error.message)
-            return
-        except GenError as error:
-            await message.channel.send(error.message)
-            return
-        else:
-            await message.channel.send("{} has {} votes".format(message_content, count))
+            await message.channel.send("Unable to delete votes")
 
         return
+
+    # if message_cmd == 'unvote':  # remove vote command
+    #     try:
+    #         connect.delete_vote(message.author.id)
+    #     except:
+    #         await message.channel.send("Unable to delete vote")
+    #         return
+    #
+    #     await message.channel.send("Removed {}\'s vote".format(message.author.name))
+    #     return
+
+    # if message_cmd == 'count':  # handles count command
+    #     if not content_flag:
+    #         await message.channel.send("Enter nomination")
+    #         return
+    #
+    #     try:
+    #         count = connect.count_votes(message_content)
+    #     except NoNomination as error:
+    #         await message.channel.send(error.message)
+    #         return
+    #     except GenError as error:
+    #         await message.channel.send(error.message)
+    #         return
+    #     else:
+    #         await message.channel.send("{} has {} votes".format(message_content, count))
+    #
+    #     return
 
     if message_cmd == 'masternom':  # admin master nomination - nominates under id = 1
-        if not message.author.id == 110050968401358848:
+        if not message.author.id == int(admin_id):
             await message.channel.send("Invalid user")
             return
 
@@ -289,27 +414,27 @@ async def on_message(message):  # handles user messages/commands
 
         return
 
-    if message_cmd == 'allvotes':  # prints all votes
-        try:
-            table = connect.get_table('votes')
-        except:
-            await message.channel.send("Unable to load table")
-
-        table_dict = {}
-
-        for tup in table:
-            book_name = connect.get_book_name_by_nomination_id(tup[0])
-            if book_name not in table_dict:
-                table_dict[book_name] = count_votes(tup[0], table)
-
-        to_print = ""
-
-        for books in list(table_dict.keys()):
-            to_print += "Nomination: '{}' has {} votes\n".format(books, table_dict[books])
-
-        await message.channel.send(to_print)
-
-        return
+    # if message_cmd == 'allvotes':  # prints all votes
+    #     try:
+    #         table = connect.get_table('votes')
+    #     except:
+    #         await message.channel.send("Unable to load table")
+    #
+    #     table_dict = {}
+    #
+    #     for tup in table:
+    #         book_name = connect.get_book_name_by_nomination_id(tup[0])
+    #         if book_name not in table_dict:
+    #             table_dict[book_name] = count_votes(tup[0], table)
+    #
+    #     to_print = ""
+    #
+    #     for books in list(table_dict.keys()):
+    #         to_print += "Nomination: '{}' has {} votes\n".format(books, table_dict[books])
+    #
+    #     await message.channel.send(to_print)
+    #
+    #     return
 
     # if message_cmd == 'test':
     #     if not message_content:
@@ -325,49 +450,92 @@ async def on_message(message):  # handles user messages/commands
     #
     #     return
 
-    if message_cmd == 'getall' or message_cmd == 'overview':  # gets all of this month's nominations
-        try:
-            nominations_table = connect.get_table('nominations')
-        except:
-            await message.channel.send("Unable to load nominations")
+    if message_cmd == 'removeemojis':
+        if not message.author.id == int(admin_id):
+            await message.channel.send("Invalid user")
+            return
+
+        connect.remove_all_emojis()
+
+        print("Succeeded")
+
+        return
+
+    # if message_cmd == 'getall' or message_cmd == 'overview':  # gets all of this month's nominations
+    #     try:
+    #         nominations_table = connect.get_table('nominations')
+    #     except:
+    #         await message.channel.send("Unable to load nominations")
+    #         return
+    #
+    #     try:
+    #         votes_table = connect.get_table('votes')
+    #     except:
+    #         await message.channel.send("Unable to load votes")
+    #         return
+    #
+    #     table_dict = {}
+    #
+    #     for att in nominations_table:
+    #         print(att)
+    #         current_book = att[1]
+    #         table_dict[current_book] = []
+    #         current_user_id = connect.get_user_id_by_id_nominations(att[0])
+    #         print(current_user_id)
+    #         user = get_user(current_user_id)
+    #         print(user)
+    #         if not user:
+    #             table_dict[current_book].append("Unknown User")
+    #         else:
+    #             table_dict[current_book].append(user.name)
+    #         table_dict[current_book].append(count_votes(att[0], votes_table))
+    #         if att[3]:
+    #             table_dict[current_book].append(att[3])
+    #         else:
+    #             table_dict[current_book].append("No emoji")
+    #
+    #     to_print = ""
+    #
+    #     print(table_dict)
+    #
+    #     for book in list(table_dict.keys()):
+    #         to_print += "{} has nominated '{}' ({}) with {} votes\n".format(table_dict[book][0], book,
+    #                                                                         table_dict[book][2], table_dict[book][1])
+    #
+    #     if to_print:
+    #         await message.channel.send(to_print)
+    #     else:
+    #         await message.channel.send("Unable to show overview")
+    #
+    #     return
+
+    # if message_cmd == 'fixshit':
+    #     if not message.author.id == int(admin_id):
+    #         await message.channel.send("Invalid user")
+    #         return
+    #
+    #     connect.oops()
+    #
+    #     print("Fixed")
+    #
+    #     return
+
+    if message_cmd == 'settle':
+        if not message.author.id == int(admin_id):
+            await message.channel.send("Invalid user")
             return
 
         try:
-            votes_table = connect.get_table('votes')
+            connect.settle_emojis()
+        except EmptyNomination as error:
+            await message.channel.send(error.message)
         except:
-            await message.channel.send("Unable to load votes")
-            return
-
-        table_dict = {}
-
-        for att in nominations_table:
-            print(att)
-            current_book = att[1]
-            table_dict[current_book] = []
-            current_user_id = connect.get_user_id_by_id_nominations(att[0])
-            print(current_user_id)
-            user = get_user(current_user_id)
-            print(user)
-            if not user:
-                table_dict[current_book].append("Unknown User")
-            else:
-                table_dict[current_book].append(user.name)
-            table_dict[current_book].append(count_votes(att[0], votes_table))
-
-        to_print = ""
-
-        for book in list(table_dict.keys()):
-            to_print += "{} has nominated '{}' with {} votes\n".format(table_dict[book][0], book, table_dict[book][1])
-
-        if to_print:
-            await message.channel.send(to_print)
-        else:
-            await message.channel.send("Unable to show overview")
+            await message.channel.send("Something went wrong")
 
         return
 
     if message_cmd == 'resolve':  # automatically chooses this month's nominations
-        if not message.author.id == 110050968401358848:
+        if not message.author.id == int(admin_id):
             await message.channel.send("Invalid user")
             return
 
@@ -421,7 +589,7 @@ async def on_message(message):  # handles user messages/commands
         return
 
     if message_cmd == 'choose':  # chooses manually this month's nominations
-        if not message.author.id == 110050968401358848:
+        if not message.author.id == int(admin_id):
             await message.channel.send("Invalid user")
             return
 
@@ -453,7 +621,7 @@ async def on_message(message):  # handles user messages/commands
         return
 
     if message_cmd == 'clearnomination':  # clear a nomination
-        if not message.author.id == 110050968401358848:
+        if not message.author.id == int(admin_id):
             await message.channel.send("Invalid user")
             return
 
@@ -473,7 +641,7 @@ async def on_message(message):  # handles user messages/commands
         return
 
     if message_cmd == 'clearbook':  # clears this month's book
-        if not message.author.id == 110050968401358848:
+        if not message.author.id == int(admin_id):
             await message.channel.send("Invalid user")
             return
 
@@ -489,7 +657,7 @@ async def on_message(message):  # handles user messages/commands
         return
 
     if message_cmd == 'clearallbooks':  # clears all book table
-        if not message.author.id == 110050968401358848:
+        if not message.author.id == int(admin_id):
             await message.channel.send("Invalid user")
             return
 
@@ -502,7 +670,7 @@ async def on_message(message):  # handles user messages/commands
         return
 
     if message_cmd == 'clearallnominations':  # clears all of this month's nominations
-        if not message.author.id == 110050968401358848:
+        if not message.author.id == int(admin_id):
             await message.channel.send("Invalid user")
             return
 
@@ -541,12 +709,12 @@ async def on_message(message):  # handles user messages/commands
         return
 
     if message_cmd == 'exit' or message_cmd == 'close':  # closes connection to server
-        if message.author.id == 110050968401358848:
+        if message.author.id == int(admin_id):
             connect.close_connection()
         return
 
     if message_cmd == 'open' or message_cmd == 'start':  # starts connection to server
-        if message.author.id == 110050968401358848:
+        if message.author.id == int(admin_id):
             connect.__init__()
         return
 
@@ -554,96 +722,102 @@ async def on_message(message):  # handles user messages/commands
 
 
 @client.event
-async def on_reaction_add(reaction, user):
+async def on_raw_reaction_add(reaction_event):
 
-    if reaction.message.channel.id != 692331084565839904 and reaction.message.channel.id != 692348060013166635:
+    if reaction_event.channel_id != int(book_channel) and reaction_event.channel_id != int(test_channel):
         return
 
-    # if reaction.message.id != monthly_message:
-    #     return
-
-    if user.id != 110050968401358848:
+    if reaction_event.message_id != int(monthly_message):
+        print("Wrong message")
         return
 
-    print("User {} has added emoji with id: {}".format(user.name, reaction.emoji))
-
-    if reaction.emoji.id not in connect.get_emoji_ids():
-        await reaction.remove(user)
+    if reaction_event.user_id != int(admin_id):
         return
 
-    if connect.has_voted(user.id):
-        try:
-            to_nominate = connect.get_nomination_by_emoji_id(reaction.emoji.id)
-        except EmptyNomination as error:
-            print(error.message)
-            await reaction.remove(user)
-            return
-        except:
-            print("Unknown error in getting nomination")
-            await reaction.remove(user)
-            return
-        else:
-            try:
-                user_vote = connect.get_nomination_id_by_user_vote(user.id)
-            except EmptyNomination:
-                try:
-                    connect.user_vote_by_emoji_id(user.id, reaction.emoji.id)
-                except DoubleVote:
-                    print("User {} has tried to doublevote".format(user.name))
-                    await reaction.remove(user)
-                    return
-                except SelfVote:
-                    print("User {} has tried to selfvote".format(user.name))
-                    await reaction.remove(user)
-                    return
-                except:
-                    print("Unknown error in voting")
-                    await reaction.remove(user)
-                    return
-            except:
-                print("Unknown error in trying to get user's vote")
-                await reaction.remove(user)
-                return
-            else:
-                try:
-                    connect.delete_vote(user.id)
-                    connect.user_vote_by_emoji_id(user.id, reaction.emoji.id)
-                except EmptyNomination:
-                    print("Couldn't find the nomination")
-                    await reaction.remove(user)
-                    return
-                except DoubleVote:
-                    print("User {} has tried to doublevote".format(user.name))
-                    await reaction.remove(user)
-                    return
-                except SelfVote:
-                    print("User {} has tried to selfvote".format(user.name))
-                    await reaction.remove(user)
-                    return
-                except:
-                    print("Unknown error in voting")
-                    await reaction.remove(user)
-                    return
+    channel = await client.fetch_channel(test_channel)
+    message = await channel.fetch_message(reaction_event.message_id)
+    user = await client.fetch_user(reaction_event.user_id)
+
+    print("User {} has added emoji: {}".format(reaction_event.user_id, reaction_event.emoji.name))
+
+    try:
+        connect.user_vote_by_emoji(reaction_event.user_id, reaction_event.emoji)
+    except EmptyNomination as error:
+        print(error.message)
+        await message.remove_reaction(reaction_event.emoji.name, user)
+        return
+    except SelfVote as error:
+        print(error.message)
+        await message.remove_reaction(reaction_event.emoji.name, user)
+        return
+    except:
+        print("General error in voting")
+        await message.remove_reaction(reaction_event.emoji.name, user)
+        return
     else:
         try:
-            connect.user_vote_by_emoji_id(user.id, reaction.emoji.id)
-        except EmptyNomination:
-            print("Couldn't find the nomination")
-            await reaction.remove(user)
-            return
-        except DoubleVote:
-            print("User {} has tried to doublevote".format(user.name))
-            await reaction.remove(user)
-            return
-        except SelfVote:
-            print("User {} has tried to selfvote".format(user.name))
-            await reaction.remove(user)
-            return
+            nominations_table = connect.get_table('nominations')
         except:
-            print("Unknown error in voting")
-            await reaction.remove(user)
+            print("Unable to load nominations")
             return
 
-    await reaction.remove(user)
+        try:
+            votes_table = connect.get_table('votes')
+        except:
+            print("Unable to load votes")
+            return
+
+        to_print = make_print_string(nominations_table, votes_table)
+
+        print(to_print)
+
+        await message.edit(content=to_print)
+
+
+@client.event
+async def on_raw_reaction_remove(reaction_event):
+    print("Dude")
+
+    if reaction_event.channel_id != int(book_channel) and reaction_event.channel_id != int(test_channel):
+        return
+
+    if reaction_event.message_id != int(monthly_message):
+        print("Wrong message")
+        return
+
+    if reaction_event.user_id != int(admin_id):
+        return
+
+    channel = await client.fetch_channel(test_channel)
+    message = await channel.fetch_message(reaction_event.message_id)
+
+    print("User {} has removed emoji: {}".format(reaction_event.user_id, reaction_event.emoji.name))
+
+    try:
+        connect.delete_vote_by_emoji(reaction_event.user_id, reaction_event.emoji.name)
+    except EmptyNomination as error:
+        print(error.message)
+        return
+    except GenError:
+        print("Something's gone wrong with the server")
+        return
+
+    try:
+        nominations_table = connect.get_table('nominations')
+    except:
+        print("Unable to load nominations")
+        return
+
+    try:
+        votes_table = connect.get_table('votes')
+    except:
+        print("Unable to load votes")
+        return
+
+    to_print = make_print_string(nominations_table, votes_table)
+
+    print(to_print)
+
+    await message.edit(content=to_print)
 
 client.run(TOKEN)
